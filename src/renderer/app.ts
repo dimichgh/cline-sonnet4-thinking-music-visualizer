@@ -464,6 +464,15 @@ class MusicVisualizerRenderer {
       const electricalArcs: any[] = [];
       console.log('Electrical system initialized');
       
+      // 4. Continent glowing bars system
+      const continentBars: any[] = [];
+      this.createContinentBars(THREE, scene, continentBars);
+      console.log('Continent bars system initialized');
+      
+      // 5. Meridian signal system
+      const meridianSignals: any[] = [];
+      console.log('Meridian signals system initialized');
+      
       // Animation state
       let time = 0;
       let beatIntensity = 0;
@@ -500,6 +509,12 @@ class MusicVisualizerRenderer {
           
           // UPDATE BACKGROUND STARS with full music reactivity
           this.updateStarField(THREE, backgroundStars, audio);
+          
+          // UPDATE CONTINENT BARS with music rhythm
+          this.updateContinentBars(THREE, continentBars, audio, time);
+          
+          // UPDATE MERIDIAN SIGNALS with traveling data
+          this.updateMeridianSignals(THREE, scene, meridianSignals, audio, time);
           
           // Keep bloom stars static for consistent glow
         }
@@ -602,73 +617,110 @@ class MusicVisualizerRenderer {
     if (!originalColors) return;
     
     // Analyze audio for different frequency bands
-    const bassLevel = this.getFrequencyAverage(audio.frequencyBins, 0, 0.15);      // 0-15%
-    const midLevel = this.getFrequencyAverage(audio.frequencyBins, 0.15, 0.6);     // 15-60%
-    const highLevel = this.getFrequencyAverage(audio.frequencyBins, 0.6, 1.0);     // 60-100%
+    const bassLevel = this.getFrequencyAverage(audio.frequencyBins, 0, 0.15);
+    const midLevel = this.getFrequencyAverage(audio.frequencyBins, 0.15, 0.6);
+    const highLevel = this.getFrequencyAverage(audio.frequencyBins, 0.6, 1.0);
     
-    // MUCH LOWER, SAFER intensity calculations
-    const bassNorm = Math.min(bassLevel / 255, 1);   // Use 255 as max (typical FFT range)
+    // Normalize levels with thresholds for constellation activation
+    const bassNorm = Math.min(bassLevel / 255, 1);
     const midNorm = Math.min(midLevel / 255, 1);
     const highNorm = Math.min(highLevel / 255, 1);
     
-    // Reduced multipliers to prevent stars from disappearing
-    const beatBoost = audio.beat ? 1.3 : 1.0;        // Much lower beat boost
-    const volumeBoost = 1 + (audio.volume || 0) * 0.5; // Much lower volume boost
+    // CONSTELLATION-BASED activation thresholds
+    const bassThreshold = 0.1;  // Bass needs to be above 10% to activate constellation
+    const midThreshold = 0.1;   
+    const highThreshold = 0.1;
     
-    console.log('Star update - Bass:', bassNorm.toFixed(2), 'Mid:', midNorm.toFixed(2), 'High:', highNorm.toFixed(2));
+    const beatBoost = audio.beat ? 1.5 : 1.0;
+    const time = Date.now() * 0.001; // For wave effects
     
-    // Update each star based on its "frequency assignment"
-    for (let i = 0; i < colors.length; i += 3) {
-      const starIndex = i / 3;
-      const starPercent = starIndex / (colors.length / 3);
+    console.log('Constellation update - Bass:', bassNorm.toFixed(2), 'Mid:', midNorm.toFixed(2), 'High:', highNorm.toFixed(2));
+    
+    // Create CONSTELLATION GROUPS (20 constellations of ~50 stars each)
+    const totalStars = colors.length / 3;
+    const constellationSize = 50; // Stars per constellation
+    const numConstellations = Math.ceil(totalStars / constellationSize);
+    
+    for (let constellation = 0; constellation < numConstellations; constellation++) {
+      const startStar = constellation * constellationSize;
+      const endStar = Math.min(startStar + constellationSize, totalStars);
       
-      // Assign stars to frequency bands based on position
-      let intensityMultiplier = 1.0;
+      // Assign constellation type based on position (creates spatial patterns)
+      const constellationType = constellation % 3;
+      let isActive = false;
       let colorShift = { r: 1, g: 1, b: 1 };
+      let intensityMultiplier = 1.0;
       
-      if (starPercent < 0.33) {
-        // Bass stars - RED glow on bass (REDUCED multipliers)
-        intensityMultiplier = 1 + bassNorm * 0.8 * beatBoost;  // Much smaller multiplier
-        colorShift = { 
-          r: 1 + bassNorm * 0.5,   // Smaller color shift
-          g: 1 + bassNorm * 0.2,   
-          b: 1                     
-        };
-      } else if (starPercent < 0.66) {
-        // Mid stars - GREEN glow on mids
-        intensityMultiplier = 1 + midNorm * 0.6 * beatBoost;
-        colorShift = { 
-          r: 1 + midNorm * 0.2,    
-          g: 1 + midNorm * 0.5,    // Smaller multipliers
-          b: 1 + midNorm * 0.2     
-        };
+      // Add wave effect - constellations activate in waves across space
+      const wavePhase = (constellation / numConstellations) * Math.PI * 2;
+      const waveOffset = Math.sin(time * 2 + wavePhase) * 0.5 + 0.5; // 0-1
+      
+      if (constellationType === 0) {
+        // Bass constellations - RED waves
+        if (bassNorm > bassThreshold) {
+          isActive = true;
+          const waveIntensity = bassNorm * waveOffset;
+          intensityMultiplier = 1 + waveIntensity * 1.2 * beatBoost;
+          colorShift = { 
+            r: 1 + waveIntensity * 2.0,   // Strong red boost
+            g: 1 + waveIntensity * 0.3,   
+            b: 1 + waveIntensity * 0.1    
+          };
+        }
+      } else if (constellationType === 1) {
+        // Mid constellations - GREEN waves  
+        if (midNorm > midThreshold) {
+          isActive = true;
+          const waveIntensity = midNorm * waveOffset;
+          intensityMultiplier = 1 + waveIntensity * 1.0 * beatBoost;
+          colorShift = { 
+            r: 1 + waveIntensity * 0.2,   
+            g: 1 + waveIntensity * 2.0,   // Strong green boost
+            b: 1 + waveIntensity * 0.3    
+          };
+        }
       } else {
-        // High stars - BLUE glow on highs
-        intensityMultiplier = 1 + highNorm * 1.0 * beatBoost;
-        colorShift = { 
-          r: 1,                    
-          g: 1 + highNorm * 0.3,   
-          b: 1 + highNorm * 0.7    // Smaller multiplier
-        };
+        // High constellations - BLUE waves
+        if (highNorm > highThreshold) {
+          isActive = true;
+          const waveIntensity = highNorm * waveOffset;
+          intensityMultiplier = 1 + waveIntensity * 1.5 * beatBoost;
+          colorShift = { 
+            r: 1 + waveIntensity * 0.1,   
+            g: 1 + waveIntensity * 0.4,   
+            b: 1 + waveIntensity * 2.0    // Strong blue boost
+          };
+        }
       }
       
-      // Apply music reactivity with BLOOM-FRIENDLY clamping
-      const newR = Math.min(originalColors[i] * colorShift.r * intensityMultiplier * volumeBoost, 8.0);
-      const newG = Math.min(originalColors[i + 1] * colorShift.g * intensityMultiplier * volumeBoost, 8.0);
-      const newB = Math.min(originalColors[i + 2] * colorShift.b * intensityMultiplier * volumeBoost, 8.0);
-      
-      // Ensure values are BRIGHT ENOUGH for bloom glow (much higher minimum)
-      colors[i] = Math.max(newR, originalColors[i] * 0.8);     // Red - keep at least 80% of original
-      colors[i + 1] = Math.max(newG, originalColors[i + 1] * 0.8); // Green - for bloom effect
-      colors[i + 2] = Math.max(newB, originalColors[i + 2] * 0.8); // Blue - maintain glow
+      // Update stars in this constellation
+      for (let starIndex = startStar; starIndex < endStar; starIndex++) {
+        const i = starIndex * 3;
+        
+        if (isActive) {
+          // Apply constellation effect
+          const newR = Math.min(originalColors[i] * colorShift.r * intensityMultiplier, 3.0);
+          const newG = Math.min(originalColors[i + 1] * colorShift.g * intensityMultiplier, 3.0);
+          const newB = Math.min(originalColors[i + 2] * colorShift.b * intensityMultiplier, 3.0);
+          
+          colors[i] = Math.max(newR, originalColors[i] * 0.7);     
+          colors[i + 1] = Math.max(newG, originalColors[i + 1] * 0.7); 
+          colors[i + 2] = Math.max(newB, originalColors[i + 2] * 0.7); 
+        } else {
+          // Fade back to original (inactive constellation)
+          colors[i] = originalColors[i] * 0.6;     // Dimmed when not active
+          colors[i + 1] = originalColors[i + 1] * 0.6; 
+          colors[i + 2] = originalColors[i + 2] * 0.6; 
+        }
+      }
     }
     
     // Mark colors for update
     starField.geometry.attributes.color.needsUpdate = true;
     
-    // Update material size based on overall intensity (SAFER limits)
+    // Update material size based on overall intensity
     const avgIntensity = (bassNorm + midNorm + highNorm) / 3;
-    const newSize = Math.max(1.5, Math.min(4.0, 2 + avgIntensity * 2 * beatBoost)); // Size 1.5-4 based on music
+    const newSize = Math.max(3.0, Math.min(6.0, 4 + avgIntensity * 2 * beatBoost)); // Bigger size range
     starField.material.size = newSize;
   }
 
@@ -769,12 +821,12 @@ class MusicVisualizerRenderer {
     bloomGeometry.setAttribute('position', new THREE.BufferAttribute(bloomPositions, 3));
     bloomGeometry.setAttribute('color', new THREE.BufferAttribute(bloomColors, 3));
     
-    // Background material (NO bloom, normal blending)
+    // Background material (NO bloom, normal blending) - BIGGER for visibility
     const bgMaterial = new THREE.PointsMaterial({
-      size: 1.5,
+      size: 4.0,  // Much bigger so color changes are visible
       vertexColors: true,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.9,
       sizeAttenuation: false,
       blending: THREE.NormalBlending // No additive = no bloom pickup
     });
@@ -1042,6 +1094,219 @@ class MusicVisualizerRenderer {
     const b = hue2rgb(p, q, h - 1/3);
     
     return (Math.round(r * 255) << 16) + (Math.round(g * 255) << 8) + Math.round(b * 255);
+  }
+
+  private createContinentBars(THREE: any, scene: any, continentBars: any[]): void {
+    const earthRadius = 3.0;
+    
+    // Continent locations (simplified major continent centers)
+    const continents = [
+      { name: 'North America', lat: 45, lon: -100, size: 0.8 },
+      { name: 'South America', lat: -15, lon: -60, size: 0.6 },
+      { name: 'Europe', lat: 50, lon: 10, size: 0.4 },
+      { name: 'Africa', lat: 0, lon: 20, size: 0.7 },
+      { name: 'Asia', lat: 35, lon: 100, size: 1.0 },
+      { name: 'Australia', lat: -25, lon: 135, size: 0.3 },
+      { name: 'Antarctica', lat: -80, lon: 0, size: 0.5 }
+    ];
+    
+    continents.forEach(continent => {
+      // Convert lat/lon to 3D position on sphere surface
+      const latRad = (continent.lat * Math.PI) / 180;
+      const lonRad = (continent.lon * Math.PI) / 180;
+      
+      const x = earthRadius * Math.cos(latRad) * Math.cos(lonRad);
+      const y = earthRadius * Math.sin(latRad);
+      const z = earthRadius * Math.cos(latRad) * Math.sin(lonRad);
+      
+      // Create bar geometry extending from surface
+      const barHeight = 0.1; // Start small, will scale with music
+      const barGeometry = new THREE.CylinderGeometry(0.05 * continent.size, 0.05 * continent.size, barHeight, 8);
+      
+      // Bright material for bloom effect
+      const barMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff6600, // Orange base color
+        transparent: true,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending
+      });
+      
+      const bar = new THREE.Mesh(barGeometry, barMaterial);
+      
+      // Position bar on continent location
+      bar.position.set(x, y, z);
+      
+      // Orient bar to point away from earth center
+      const surfaceNormal = new THREE.Vector3(x, y, z).normalize();
+      bar.lookAt(new THREE.Vector3().addVectors(bar.position, surfaceNormal));
+      bar.rotateX(Math.PI / 2); // Adjust orientation
+      
+      // Store continent data
+      (bar as any).continentData = {
+        name: continent.name,
+        baseHeight: barHeight,
+        baseColor: 0xff6600,
+        surfaceNormal: surfaceNormal,
+        size: continent.size,
+        lastTrigger: 0
+      };
+      
+      scene.add(bar);
+      continentBars.push(bar);
+    });
+    
+    console.log(`Created ${continents.length} continent bars`);
+  }
+
+  private updateContinentBars(THREE: any, continentBars: any[], audio: any, time: number): void {
+    if (!continentBars.length || !audio) return;
+    
+    // Get frequency data for different continents
+    const bassLevel = this.getFrequencyAverage(audio.frequencyBins, 0, 0.2);
+    const midLevel = this.getFrequencyAverage(audio.frequencyBins, 0.2, 0.6);
+    const highLevel = this.getFrequencyAverage(audio.frequencyBins, 0.6, 1.0);
+    
+    // Normalize levels
+    const bassNorm = Math.min(bassLevel / 255, 1);
+    const midNorm = Math.min(midLevel / 255, 1);
+    const highNorm = Math.min(highLevel / 255, 1);
+    
+    const beatBoost = audio.beat ? 2.0 : 1.0;
+    
+    continentBars.forEach((bar, index) => {
+      const data = bar.continentData;
+      if (!data) return;
+      
+      // Assign different frequency bands to different continents
+      let intensity = 0;
+      let color = data.baseColor;
+      
+      if (index % 3 === 0) {
+        // Bass continents
+        intensity = bassNorm * beatBoost;
+        color = bassNorm > 0.1 ? 0xff2200 : data.baseColor; // Red for bass
+      } else if (index % 3 === 1) {
+        // Mid continents  
+        intensity = midNorm * beatBoost;
+        color = midNorm > 0.1 ? 0x22ff00 : data.baseColor; // Green for mids
+      } else {
+        // High continents
+        intensity = highNorm * beatBoost;
+        color = highNorm > 0.1 ? 0x2200ff : data.baseColor; // Blue for highs
+      }
+      
+      // Scale bar height based on music intensity
+      const newHeight = data.baseHeight + intensity * 1.5 * data.size;
+      bar.scale.y = Math.max(1, newHeight / data.baseHeight);
+      
+      // Update color
+      bar.material.color.setHex(color);
+      
+      // Update brightness for bloom effect
+      bar.material.opacity = Math.min(0.4 + intensity * 0.6, 1.0);
+    });
+  }
+
+  private updateMeridianSignals(THREE: any, scene: any, meridianSignals: any[], audio: any, time: number): void {
+    if (!audio) return;
+    
+    // Create traveling signals on meridians when music is playing
+    const bassLevel = this.getFrequencyAverage(audio.frequencyBins, 0, 0.15);
+    const midLevel = this.getFrequencyAverage(audio.frequencyBins, 0.15, 0.6);
+    const highLevel = this.getFrequencyAverage(audio.frequencyBins, 0.6, 1.0);
+    
+    // Trigger new signals based on music intensity
+    const signalProbability = (bassLevel + midLevel + highLevel) / (3 * 255) * 0.3; // Max 30% chance
+    
+    if (Math.random() < signalProbability && meridianSignals.length < 8) {
+      this.createMeridianSignal(THREE, scene, meridianSignals, audio);
+    }
+    
+    // Update existing signals
+    for (let i = meridianSignals.length - 1; i >= 0; i--) {
+      const signal = meridianSignals[i];
+      signal.progress += signal.speed;
+      
+      // Update signal position along meridian
+      if (signal.points && signal.progress < signal.points.length - 1) {
+        const pointIndex = Math.floor(signal.progress);
+        const nextIndex = Math.min(pointIndex + 1, signal.points.length - 1);
+        const t = signal.progress - pointIndex;
+        
+        // Interpolate position
+        const currentPos = signal.points[pointIndex];
+        const nextPos = signal.points[nextIndex];
+        signal.mesh.position.lerpVectors(currentPos, nextPos, t);
+      } else {
+        // Signal reached end, remove it
+        scene.remove(signal.mesh);
+        signal.mesh.geometry.dispose();
+        signal.mesh.material.dispose();
+        meridianSignals.splice(i, 1);
+      }
+    }
+  }
+
+  private createMeridianSignal(THREE: any, scene: any, meridianSignals: any[], audio: any): void {
+    const radius = 3.05;
+    const longitude = Math.random() * 360; // Random meridian
+    const lonRad = (longitude * Math.PI) / 180;
+    
+    // Create meridian path points
+    const points = [];
+    for (let lat = -90; lat <= 90; lat += 5) {
+      const latRad = (lat * Math.PI) / 180;
+      const x = radius * Math.cos(latRad) * Math.cos(lonRad);
+      const y = radius * Math.sin(latRad);
+      const z = radius * Math.cos(latRad) * Math.sin(lonRad);
+      points.push(new THREE.Vector3(x, y, z));
+    }
+    
+    // Create signal geometry and material
+    const signalGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+    
+    // Color based on frequency dominance
+    const bassLevel = this.getFrequencyAverage(audio.frequencyBins, 0, 0.2);
+    const midLevel = this.getFrequencyAverage(audio.frequencyBins, 0.2, 0.6);
+    const highLevel = this.getFrequencyAverage(audio.frequencyBins, 0.6, 1.0);
+    
+    let signalColor = 0x00ffff; // Default cyan
+    if (bassLevel > midLevel && bassLevel > highLevel) {
+      signalColor = 0xff4400; // Orange for bass
+    } else if (midLevel > bassLevel && midLevel > highLevel) {
+      signalColor = 0x44ff00; // Green for mids
+    } else if (highLevel > bassLevel && highLevel > midLevel) {
+      signalColor = 0x0044ff; // Blue for highs
+    }
+    
+    const signalMaterial = new THREE.MeshBasicMaterial({
+      color: signalColor,
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending
+    });
+    
+    const signalMesh = new THREE.Mesh(signalGeometry, signalMaterial);
+    
+    // Start at south pole
+    signalMesh.position.copy(points[0]);
+    
+    // Random direction (some go north, some go south)
+    const direction = Math.random() > 0.5 ? 1 : -1;
+    if (direction < 0) {
+      points.reverse();
+    }
+    
+    const signal = {
+      mesh: signalMesh,
+      points: points,
+      progress: 0,
+      speed: 0.5 + Math.random() * 1.0, // Variable speed
+      color: signalColor
+    };
+    
+    scene.add(signalMesh);
+    meridianSignals.push(signal);
   }
 
   private createElectricalArc(THREE: any, scene: any, electricalArcs: any[], instrumentColor?: number): void {
