@@ -14,11 +14,20 @@ export class EventManager {
     onDroppedFile?: (file: File) => void;
   } = {};
 
+  // Auto-hide control panel state
+  private isPinned = false;
+  private hideTimeout: NodeJS.Timeout | null = null;
+  private controlsPanel: HTMLElement | null = null;
+  private pinButton: HTMLElement | null = null;
+  private hoverZone: HTMLElement | null = null;
+  private justUnpinned = false; // Flag to prevent immediate show after unpin
+
   constructor() {
     this.setupEventListeners();
     this.setupDragAndDrop();
     this.setupIPC();
     this.setupKeyboard();
+    this.setupAutoHideControls();
   }
 
   public setCallbacks(callbacks: typeof this.callbacks): void {
@@ -210,5 +219,127 @@ export class EventManager {
         buttonElement.classList.remove('active');
       }
     });
+  }
+
+  private setupAutoHideControls(): void {
+    this.controlsPanel = document.getElementById('controls');
+    this.pinButton = document.getElementById('pin-button');
+    this.hoverZone = document.getElementById('hover-zone');
+
+    if (!this.controlsPanel || !this.pinButton || !this.hoverZone) {
+      console.warn('Auto-hide controls setup failed - missing elements');
+      return;
+    }
+
+    // Set up pin button functionality
+    this.pinButton.addEventListener('click', () => {
+      this.togglePin();
+    });
+
+    // Set up mouse events for auto-hide
+    this.setupMouseEvents();
+
+    // Start with controls visible for a few seconds, then auto-hide
+    this.scheduleHide(3000); // Hide after 3 seconds initially
+  }
+
+  private setupMouseEvents(): void {
+    if (!this.controlsPanel || !this.hoverZone) return;
+
+    // Show controls when hovering over the bottom area
+    this.hoverZone.addEventListener('mouseenter', () => {
+      this.showControls();
+    });
+
+    // Show controls when hovering over the controls themselves
+    this.controlsPanel.addEventListener('mouseenter', () => {
+      this.showControls();
+    });
+
+    // Hide controls when leaving the control area (unless pinned)
+    this.controlsPanel.addEventListener('mouseleave', () => {
+      if (!this.isPinned) {
+        this.scheduleHide(1000); // Hide after 1 second delay
+      }
+    });
+
+    // Also show controls on any mouse movement near the bottom
+    document.addEventListener('mousemove', (e) => {
+      const windowHeight = window.innerHeight;
+      const mouseY = e.clientY;
+      
+      // If mouse is in bottom 20% of screen, show controls
+      if (mouseY > windowHeight * 0.8) {
+        this.showControls();
+      } else if (!this.isPinned && mouseY < windowHeight * 0.6) {
+        // If mouse is in top 60% of screen and not pinned, schedule hide
+        this.scheduleHide(2000);
+      }
+    });
+  }
+
+  private togglePin(): void {
+    this.isPinned = !this.isPinned;
+    
+    if (!this.pinButton || !this.controlsPanel) return;
+
+    if (this.isPinned) {
+      // Pin the controls
+      this.justUnpinned = false; // Clear the flag when pinning
+      this.pinButton.classList.add('pinned');
+      this.controlsPanel.classList.add('pinned');
+      this.controlsPanel.classList.remove('hidden');
+      this.clearHideTimeout();
+    } else {
+      // Unpin the controls
+      this.justUnpinned = true; // Set flag to prevent immediate show
+      this.pinButton.classList.remove('pinned');
+      this.controlsPanel.classList.remove('pinned');
+      
+      // Force hide immediately to prevent hover interference
+      this.hideControls();
+      
+      // Clear the flag after a short delay
+      setTimeout(() => {
+        this.justUnpinned = false;
+      }, 500); // 500ms cooldown after unpinning
+    }
+  }
+
+  private showControls(): void {
+    if (!this.controlsPanel) return;
+    
+    // Don't show if we just unpinned (prevents immediate show from hover)
+    if (this.justUnpinned) return;
+
+    this.controlsPanel.classList.remove('hidden');
+    this.clearHideTimeout();
+    
+    // If not pinned, schedule auto-hide
+    if (!this.isPinned) {
+      this.scheduleHide(3000);
+    }
+  }
+
+  private hideControls(): void {
+    if (!this.controlsPanel || this.isPinned) return;
+
+    this.controlsPanel.classList.add('hidden');
+  }
+
+  private scheduleHide(delay: number): void {
+    if (this.isPinned) return;
+
+    this.clearHideTimeout();
+    this.hideTimeout = setTimeout(() => {
+      this.hideControls();
+    }, delay);
+  }
+
+  private clearHideTimeout(): void {
+    if (this.hideTimeout) {
+      clearTimeout(this.hideTimeout);
+      this.hideTimeout = null;
+    }
   }
 }
