@@ -138,10 +138,13 @@ export class EarthEffects {
       
       // Get frequency data for this specific bar
       const freqIndex = Math.min(data.frequencyIndex, audio.frequencyBins.length - 1);
-      const rawFrequency = audio.frequencyBins[freqIndex] || 0;
+      const rawFrequency = audio.frequencyBins[freqIndex] || -120;
       
-      // Normalize frequency value (0-1)
-      const intensity = Math.min(rawFrequency / 255, 1) * beatBoost;
+      // Convert decibel values to intensity (0-1) with higher threshold for selectivity
+      // Use smaller dynamic range to make bars more selective
+      const dbRange = 60; // Use 60 dB range instead of 120 for more selectivity
+      const threshold = -80; // Only activate bars above -80 dB
+      const intensity = Math.max(0, Math.min((rawFrequency - threshold) / dbRange, 1)) * beatBoost;
       
       // Scale bar height based on frequency intensity
       const maxBarHeight = 2.0; // Maximum bar extension
@@ -173,8 +176,13 @@ export class EarthEffects {
     const midLevel = this.getFrequencyAverage(audio.frequencyBins, 0.15, 0.6);
     const highLevel = this.getFrequencyAverage(audio.frequencyBins, 0.6, 1.0);
     
-    // Trigger new signals based on music intensity
-    const signalProbability = (bassLevel + midLevel + highLevel) / (3 * 255) * 0.3; // Max 30% chance
+    // Trigger new signals based on music intensity (convert decibels to probability)
+    // Convert decibel values (-120 to 0) to intensity (0 to 1)
+    const dbRange = 120;
+    const bassIntensity = Math.max(0, (bassLevel + dbRange) / dbRange);
+    const midIntensity = Math.max(0, (midLevel + dbRange) / dbRange);
+    const highIntensity = Math.max(0, (highLevel + dbRange) / dbRange);
+    const signalProbability = (bassIntensity + midIntensity + highIntensity) / 3 * 0.3; // Max 30% chance
     
     if (Math.random() < signalProbability && this.meridianSignals.length < 8) {
       this.createMeridianSignal(THREE, scene, audio);

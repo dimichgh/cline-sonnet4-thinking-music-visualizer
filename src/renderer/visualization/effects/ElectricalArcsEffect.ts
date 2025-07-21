@@ -143,12 +143,12 @@ export class ElectricalArcsEffect {
     // Use instrument color but make it MUCH BRIGHTER for bloom effect
     let arcColor = instrumentColor || 0x00ccff;
     
-    // BOOST brightness for bloom threshold (multiply RGB values)
+    // MASSIVE brightness boost for bloom threshold (multiply RGB values)
     const color = new THREE.Color(arcColor);
     const brightColor = new THREE.Color(
-      Math.min(color.r * 3, 1), // 3x brighter red
-      Math.min(color.g * 3, 1), // 3x brighter green  
-      Math.min(color.b * 3, 1)  // 3x brighter blue
+      Math.min(color.r * 5, 1), // 5x brighter red (increased from 3x)
+      Math.min(color.g * 5, 1), // 5x brighter green  
+      Math.min(color.b * 5, 1)  // 5x brighter blue
     );
     
     // BRIGHT BLOOM-READY MATERIALS
@@ -215,18 +215,36 @@ export class ElectricalArcsEffect {
     // Use instrument color or default
     const ringColor = instrumentColor || this.getInstrumentColor(audio || null);
     
-    // Create bright material for bloom effect
+    // Calculate audio-reactive brightness like Earth bars
+    let intensity = 1.0; // Default intensity when no audio
+    if (audio && audio.frequencyBins && audio.frequencyBins.length > 0) {
+      // Sample a random frequency for this ring
+      const freqIndex = Math.floor(Math.random() * audio.frequencyBins.length);
+      const rawFrequency = audio.frequencyBins[freqIndex] || -120;
+      
+      // Use same logic as Earth bars for brightness
+      const dbRange = 60; // Same 60 dB range as bars
+      const threshold = -80; // Same -80 dB threshold as bars
+      intensity = Math.max(0, Math.min((rawFrequency - threshold) / dbRange, 1));
+      
+      // Apply beat boost like bars
+      const beatBoost = audio.beat ? 2.0 : 1.0;
+      intensity *= beatBoost;
+    }
+    
+    // Create EXTREMELY bright material for bloom effect - scale with intensity
     const color = new THREE.Color(ringColor);
+    const brightnessMultiplier = 3 + intensity * 7; // 3x to 10x brightness based on audio
     const brightColor = new THREE.Color(
-      Math.min(color.r * 2, 1),
-      Math.min(color.g * 2, 1),
-      Math.min(color.b * 2, 1)
+      Math.min(color.r * brightnessMultiplier, 1),
+      Math.min(color.g * brightnessMultiplier, 1),
+      Math.min(color.b * brightnessMultiplier, 1)
     );
     
     const ringMaterial = new THREE.MeshBasicMaterial({
       color: brightColor,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.4 + intensity * 0.6, // 40% to 100% opacity based on audio
       side: THREE.DoubleSide,
       blending: THREE.AdditiveBlending
     });
@@ -255,58 +273,54 @@ export class ElectricalArcsEffect {
   }
 
   private getInstrumentColor(audio: AudioAnalysisData | null): number {
-    console.log('Getting instrument color, audio:', audio ? 'exists' : 'null');
-    
-    // Debug: When no music - use time-based rainbow
+    // When no music - use time-based rainbow
     if (!audio || !audio.frequencyBins || audio.frequencyBins.length === 0) {
       const time = Date.now() * 0.001;
       const hue = ((time * 0.3) % 1) * 360;
-      console.log('No audio - using rainbow hue:', hue);
-      return this.hslToHex(hue, 1, 0.7); // Bright rainbow when no music
+      return this.hslToHex(hue, 1, 0.7);
     }
     
-    console.log('Audio frequency bins length:', audio.frequencyBins.length);
-    
-    // Simplified frequency analysis with LOWER thresholds for more color variety
-    const totalBins = audio.frequencyBins.length;
-    const bass = audio.frequencyBins.slice(0, Math.floor(totalBins * 0.2));
-    const mids = audio.frequencyBins.slice(Math.floor(totalBins * 0.2), Math.floor(totalBins * 0.6));
-    const highs = audio.frequencyBins.slice(Math.floor(totalBins * 0.6));
-    
-    // Calculate levels WITHOUT normalization (use raw values)
-    const bassLevel = bass.reduce((a: number, b: number) => a + b, 0) / bass.length;
-    const midLevel = mids.reduce((a: number, b: number) => a + b, 0) / mids.length;
-    const highLevel = highs.reduce((a: number, b: number) => a + b, 0) / highs.length;
-    
-    console.log('Frequency levels - Bass:', bassLevel, 'Mid:', midLevel, 'High:', highLevel);
-    
-    // MUCH LOWER threshold for more responsive colors
-    const threshold = 5; // Very low threshold
-    const maxLevel = Math.max(bassLevel, midLevel, highLevel);
-    
-    // More aggressive color selection
-    if (bassLevel > threshold && bassLevel >= midLevel && bassLevel >= highLevel) {
-      console.log('Bass dominant - RED');
-      return 0xff2200; // Bright red for bass
-    } else if (midLevel > threshold && midLevel >= bassLevel && midLevel >= highLevel) {
-      console.log('Mid dominant - GREEN');
-      return 0x22ff00; // Bright green for mids
-    } else if (highLevel > threshold && highLevel >= bassLevel && highLevel >= midLevel) {
-      console.log('High dominant - BLUE');
-      return 0x0022ff; // Bright blue for highs
-    } else if (maxLevel > threshold) {
-      // Mixed frequencies - use volume-based colors
-      const time = Date.now() * 0.001;
-      const volumeHue = ((audio.volume || 0) * 360 + time * 30) % 360;
-      console.log('Mixed frequencies - volume hue:', volumeHue);
-      return this.hslToHex(volumeHue, 1, 0.7);
-    }
-    
-    // Fallback - rotating colors
     const time = Date.now() * 0.001;
-    const hue = ((time * 0.5) % 1) * 360;
-    console.log('Fallback - rainbow hue:', hue);
-    return this.hslToHex(hue, 1, 0.7);
+    
+    // Create rhythm-responsive colors that change frequently
+    let baseHue = 0;
+    
+    // Beat-driven color shifts
+    if (audio.beat) {
+      // On beats, jump to a new color based on volume and RMS
+      baseHue = ((audio.volume * 360) + (audio.rms * 180) + (time * 60)) % 360;
+    } else {
+      // Between beats, create flowing color changes based on spectral content
+      const totalBins = audio.frequencyBins.length;
+      
+      // Sample different frequency regions for color variation
+      const lowFreq = audio.frequencyBins[Math.floor(totalBins * 0.1)] || -120;
+      const midFreq = audio.frequencyBins[Math.floor(totalBins * 0.4)] || -120;
+      const highFreq = audio.frequencyBins[Math.floor(totalBins * 0.8)] || -120;
+      
+      // Convert decibels to intensity and use for color mixing
+      const lowIntensity = Math.max(0, (lowFreq + 120) / 120);
+      const midIntensity = Math.max(0, (midFreq + 120) / 120);
+      const highIntensity = Math.max(0, (highFreq + 120) / 120);
+      
+      // Create dynamic hue based on frequency distribution + time
+      baseHue = (
+        lowIntensity * 0 +      // Red component
+        midIntensity * 120 +    // Green component  
+        highIntensity * 240 +   // Blue component
+        time * 20               // Slow time drift
+      ) % 360;
+    }
+    
+    // Add volume-based variation to prevent monotony
+    const volumeShift = (audio.volume || 0) * 60;
+    const finalHue = (baseHue + volumeShift) % 360;
+    
+    // Use higher saturation and lightness for more vibrant colors
+    const saturation = 0.9 + (audio.rms || 0) * 0.1; // 90-100% saturation
+    const lightness = 0.6 + (audio.peak || 0) * 0.3;  // 60-90% lightness
+    
+    return this.hslToHex(finalHue, saturation, lightness);
   }
   
   private hslToHex(h: number, s: number, l: number): number {

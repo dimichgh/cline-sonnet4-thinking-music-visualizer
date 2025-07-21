@@ -130,7 +130,7 @@ export class StarFieldEffect {
     const beatBoost = audio.beat ? 1.5 : 1.0;
     const time = Date.now() * 0.001; // For wave effects
     
-    console.log('Constellation update - Bass:', bassNorm.toFixed(2), 'Mid:', midNorm.toFixed(2), 'High:', highNorm.toFixed(2));
+    // console.log('Constellation update - Bass:', bassNorm.toFixed(2), 'Mid:', midNorm.toFixed(2), 'High:', highNorm.toFixed(2));
     
     // Create CONSTELLATION GROUPS (20 constellations of ~50 stars each)
     const totalStars = colors.length / 3;
