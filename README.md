@@ -6,7 +6,7 @@ A powerful Electron-based music visualizer that transforms your audio into stunn
 
 | Digital Earth Mode | Wireframe Geometry Mode |
 |:------------------:|:----------------------:|
-| ![Digital Earth](./assets/digital-earth-demo.png) | ![Wireframe](./assets/wireframe-demo.png) |
+| ![Digital Earth](assets/demo1.jpg) | ![Wireframe](assets/demo2.jpg) |
 
 *Immersive 3D visualizations that react dynamically to your music's rhythm, frequency, and intensity*
 
