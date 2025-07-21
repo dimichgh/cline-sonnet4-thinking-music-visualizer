@@ -50,17 +50,19 @@ export class VisualizationManager extends EventTarget {
   }
 
   private async registerAllModes(): Promise<void> {
-    // Test with just one simple mode first to isolate memory issues
+    // Register visualization modes
     const { PsychedelicMode } = await import('./modes/PsychedelicMode');
+    const { WireframeGeometryMode } = await import('./modes/WireframeGeometryMode');
 
-    // Create and register only the simplest mode
+    // Create and register modes
     const scene = this.sceneManager.getScene();
     const camera = this.sceneManager.getCamera();
     const renderer = this.sceneManager.getRenderer();
 
     this.registerMode(new PsychedelicMode(scene, camera, renderer));
+    this.registerMode(new WireframeGeometryMode(scene, camera, renderer));
 
-    console.log('Single mode registered for memory testing with Electron 37.2.0');
+    console.log('Visualization modes registered: PsychedelicMode, WireframeGeometryMode');
   }
 
   public registerMode(mode: BaseVisualizationMode): void {
@@ -236,6 +238,10 @@ export class VisualizationManager extends EventTarget {
 
   public switchToTronCity(): Promise<void> {
     return this.setMode(VisualizationMode.TRON_CITY);
+  }
+
+  public switchToWireframeGeometry(): Promise<void> {
+    return this.setMode(VisualizationMode.WIREFRAME_GEOMETRY);
   }
 
   // Debug and utility methods

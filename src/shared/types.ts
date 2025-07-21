@@ -80,7 +80,8 @@ export enum VisualizationMode {
   PSYCHEDELIC = 'psychedelic',
   DIGITAL_EARTH = 'digital_earth',
   BLACK_HOLE = 'black_hole',
-  TRON_CITY = 'tron_city'
+  TRON_CITY = 'tron_city',
+  WIREFRAME_GEOMETRY = 'wireframe_geometry'
 }
 
 export interface VisualizationSettings {

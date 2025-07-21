@@ -155,9 +155,9 @@ export class VisualizationController {
     this.scene.add(this.earthGroup);
     console.log('Earth sphere added');
     
-    // 3. Create continent bars
-    this.earthEffects.createContinentBars(THREE, this.scene);
-    console.log('Continent bars system initialized');
+    // 3. Create continent bars for music visualization
+    this.earthEffects.createContinentBars(THREE, this.earthGroup);
+    console.log('Continent bars added');
   }
 
   private startAnimation(): void {
@@ -188,11 +188,13 @@ export class VisualizationController {
           this.starFieldEffect.updateStarField(THREE, this.backgroundStars, audioData);
         }
         
-        // Update electrical arcs
+        // Update electrical arcs (now circular rings)
         this.electricalArcsEffect.updateElectricalArcs(THREE, this.scene, audioData, this.time);
         
-        // Update continent bars and meridian signals
+        // Update continent bars with music rhythm
         this.earthEffects.updateContinentBars(THREE, audioData, this.time);
+        
+        // Update meridian signals
         this.earthEffects.updateMeridianSignals(THREE, this.scene, audioData, this.time);
       } else {
         // Update effects without audio

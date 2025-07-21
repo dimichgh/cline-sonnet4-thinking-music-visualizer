@@ -55,21 +55,21 @@ export class EarthEffects {
     return earthGroup;
   }
 
-  public createContinentBars(THREE: any, scene: any): void {
+  public createContinentBars(THREE: any, earthGroup: any): void {
     const earthRadius = 3.0;
     
     // Create music equalizer bars spread across Earth surface
     // Generate bars in a grid pattern around the sphere
-    const latSteps = 8; // Number of latitude rings
-    const lonSteps = 16; // Number of longitude divisions per ring
+    const latSteps = 6; // Number of latitude rings (reduced for better visibility)
+    const lonSteps = 12; // Number of longitude divisions per ring
     
     for (let latStep = 0; latStep < latSteps; latStep++) {
-      // Avoid poles, spread evenly between -75 and +75 degrees
-      const lat = -75 + (latStep / (latSteps - 1)) * 150;
+      // Avoid poles, spread evenly between -60 and +60 degrees
+      const lat = -60 + (latStep / (latSteps - 1)) * 120;
       const latRad = (lat * Math.PI) / 180;
       
       // Vary number of bars per latitude to account for sphere curvature
-      const barsAtThisLat = Math.max(4, Math.floor(lonSteps * Math.cos(latRad)));
+      const barsAtThisLat = Math.max(6, Math.floor(lonSteps * Math.cos(latRad)));
       
       for (let lonStep = 0; lonStep < barsAtThisLat; lonStep++) {
         const lon = (lonStep / barsAtThisLat) * 360;
@@ -80,47 +80,50 @@ export class EarthEffects {
         const y = earthRadius * Math.sin(latRad);
         const z = earthRadius * Math.cos(latRad) * Math.sin(lonRad);
         
-        // Create equalizer bar geometry
-        const barHeight = 0.1; // Start small, will scale with music
-        const barWidth = 0.08;
-        const barGeometry = new THREE.CylinderGeometry(barWidth, barWidth, barHeight, 6);
+        // Create LARGER equalizer bar geometry for better visibility
+        const barHeight = 0.3; // Larger base height
+        const barWidth = 0.15; // Much wider bars
+        const barGeometry = new THREE.CylinderGeometry(barWidth, barWidth, barHeight, 8);
         
-        // Create material with color based on position for variety
-        const hue = (lonStep / barsAtThisLat + latStep * 0.1) % 1;
+        // Create BRIGHT material for better visibility
+        const hue = (lonStep / barsAtThisLat + latStep * 0.15) % 1;
         const barMaterial = new THREE.MeshBasicMaterial({
-          color: new THREE.Color().setHSL(hue, 0.8, 0.6),
+          color: new THREE.Color().setHSL(hue, 1.0, 0.7), // Brighter colors
           transparent: true,
-          opacity: 0.8,
+          opacity: 0.9, // More opaque
           blending: THREE.AdditiveBlending
         });
         
         const bar = new THREE.Mesh(barGeometry, barMaterial);
         
-        // Position bar on earth surface
-        bar.position.set(x, y, z);
-        
-        // Orient bar to point away from earth center (normal to surface)
+        // Position bar OUTSIDE earth surface for visibility
         const surfaceNormal = new THREE.Vector3(x, y, z).normalize();
+        const barPosition = surfaceNormal.clone().multiplyScalar(earthRadius + barHeight / 2);
+        bar.position.copy(barPosition);
+        
+        // Orient bar to point away from earth center
         bar.lookAt(new THREE.Vector3().addVectors(bar.position, surfaceNormal));
         bar.rotateX(Math.PI / 2); // Adjust orientation so bar extends outward
         
         // Store bar data for music reactivity
         (bar as any).barData = {
           baseHeight: barHeight,
-          baseColor: new THREE.Color().setHSL(hue, 0.8, 0.6),
+          baseColor: new THREE.Color().setHSL(hue, 1.0, 0.7),
           surfaceNormal: surfaceNormal,
           frequencyIndex: (latStep * barsAtThisLat + lonStep) % 32, // Map to frequency bins
           latStep: latStep,
           lonStep: lonStep,
-          originalPosition: new THREE.Vector3(x, y, z)
+          originalPosition: barPosition.clone(),
+          basePosition: barPosition.clone()
         };
         
-        scene.add(bar);
+        // ADD TO EARTH GROUP so bars rotate with earth
+        earthGroup.add(bar);
         this.continentBars.push(bar);
       }
     }
     
-    console.log(`Created ${this.continentBars.length} music equalizer bars across Earth surface`);
+    console.log(`Created ${this.continentBars.length} VISIBLE music equalizer bars attached to Earth`);
   }
 
   public updateContinentBars(THREE: any, audio: AudioAnalysisData, time: number): void {

@@ -177,6 +177,14 @@ export class EventManager {
           }
         }
         break;
+      case '5':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          if (this.callbacks.onModeSwitch) {
+            this.callbacks.onModeSwitch(VisualizationMode.WIREFRAME_GEOMETRY);
+          }
+        }
+        break;
       case 'o':
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault();

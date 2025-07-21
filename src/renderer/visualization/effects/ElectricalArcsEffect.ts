@@ -199,7 +199,7 @@ export class ElectricalArcsEffect {
     scene.add(glow2);
   }
 
-  private createMusicRing(THREE: any, scene: any, instrumentColor?: number, audio?: AudioAnalysisData | null | undefined): void {
+  private createMusicRing(THREE: any, scene: any, instrumentColor?: number, audio?: AudioAnalysisData | null): void {
     // Create circular ring around earth at random distance
     const baseRadius = 4 + Math.random() * 3; // Random distance from earth (4-7 units)
     const ringThickness = 0.05 + Math.random() * 0.05; // Variable thickness
@@ -213,7 +213,7 @@ export class ElectricalArcsEffect {
     );
     
     // Use instrument color or default
-    const ringColor = instrumentColor || this.getInstrumentColor(audio);
+    const ringColor = instrumentColor || this.getInstrumentColor(audio || null);
     
     // Create bright material for bloom effect
     const color = new THREE.Color(ringColor);
