@@ -42,7 +42,8 @@ class MusicVisualizerRenderer {
     this.eventManager = new EventManager();
     
     // Initialize visualization with canvas from DOM manager
-    this.visualizationController = new VisualizationController(this.domManager.getCanvas());
+    const canvas = this.domManager.getCanvas();
+    this.visualizationController = new VisualizationController(canvas);
     
     // Initialize audio engine
     this.audioEngine = new AudioEngine();
@@ -99,9 +100,13 @@ class MusicVisualizerRenderer {
     // Update event manager button states
     this.eventManager.updateModeButtons(mode);
     
-    // For now, we're only implementing Digital Earth mode in the controller
-    // Other modes would require additional implementation
-    console.log('Switched to visualization mode:', mode);
+    // Switch to the new visualization mode
+    try {
+      await this.visualizationController.setMode(mode);
+      console.log('Successfully switched to visualization mode:', mode);
+    } catch (error) {
+      console.error('Failed to switch visualization mode:', error);
+    }
   }
 
   private async loadAudioFile(): Promise<void> {

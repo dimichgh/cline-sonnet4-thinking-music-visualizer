@@ -1,4 +1,5 @@
-import { AudioAnalysisData } from '@shared/types';
+import { AudioAnalysisData, VisualizationMode } from '@shared/types';
+import { WireframeGeometryMode } from './modes/WireframeGeometryMode';
 import { StarFieldEffect } from './effects/StarFieldEffect';
 import { ElectricalArcsEffect } from './effects/ElectricalArcsEffect';
 import { EarthEffects } from './effects/EarthEffects';
@@ -22,6 +23,10 @@ export class VisualizationController {
   private earthGroup: any = null;
   private bloomStars: any = null;
   private backgroundStars: any = null;
+  
+  // Mode management
+  private currentMode: VisualizationMode = VisualizationMode.DIGITAL_EARTH;
+  private wireframeMode: WireframeGeometryMode | null = null;
   
   // Animation state
   private time = 0;
@@ -124,8 +129,62 @@ export class VisualizationController {
     }
   }
 
+  public async setMode(mode: VisualizationMode): Promise<void> {
+    console.log('VisualizationController switching to mode:', mode);
+    this.currentMode = mode;
+    
+    if (mode === VisualizationMode.WIREFRAME_GEOMETRY) {
+      // Clear existing scene objects
+      this.clearEarthObjects();
+      
+      // Initialize wireframe mode if not already created
+      if (!this.wireframeMode) {
+        this.wireframeMode = new WireframeGeometryMode(this.scene, this.camera, this.renderer);
+        await this.wireframeMode.init();
+      }
+      
+      // Activate wireframe mode
+      this.wireframeMode.activate();
+      console.log('Switched to WireframeGeometryMode');
+    } else {
+      // Deactivate wireframe mode if active
+      if (this.wireframeMode) {
+        this.wireframeMode.deactivate();
+      }
+      
+      // Restore earth visualization
+      await this.restoreEarthObjects();
+      console.log('Switched to Digital Earth mode');
+    }
+  }
+
+  private clearEarthObjects(): void {
+    if (this.earthGroup) {
+      this.scene.remove(this.earthGroup);
+    }
+  }
+
+  private async restoreEarthObjects(): Promise<void> {
+    if (!this.earthGroup) {
+      // Re-create earth objects if they don't exist
+      const THREE = await import('three');
+      this.earthGroup = this.earthEffects.createEarthSphere(THREE);
+      this.earthEffects.createContinentBars(THREE, this.earthGroup);
+    }
+    
+    if (this.earthGroup && !this.scene.children.includes(this.earthGroup)) {
+      this.scene.add(this.earthGroup);
+    }
+  }
+
   public destroy(): void {
     this.stop();
+    
+    // Clean up wireframe mode
+    if (this.wireframeMode) {
+      this.wireframeMode.dispose();
+      this.wireframeMode = null;
+    }
     
     // Clean up Three.js resources
     if (this.scene) {
@@ -160,6 +219,72 @@ export class VisualizationController {
     console.log('Continent bars added');
   }
 
+  private updateWireframeMode(audioData: AudioAnalysisData | null): void {
+    if (this.wireframeMode) {
+      // Create default audio data if none provided (for ambient mode)
+      const defaultAudioData: AudioAnalysisData = {
+        frequencies: new Float32Array(128),
+        timeDomain: new Float32Array(128),
+        frequencyBins: [],
+        volume: 0.1,
+        rms: 0.05,
+        peak: 0.1,
+        beat: false,
+        tempo: 0,
+        confidence: 0,
+        spectralCentroid: 0,
+        spectralRolloff: 0,
+        zeroCrossingRate: 0,
+        detectedInstruments: [],
+        timestamp: Date.now()
+      };
+
+      const visualizationData = {
+        audio: audioData || defaultAudioData,
+        deltaTime: 16.67, // ~60fps
+        totalTime: this.time * 1000
+      };
+      this.wireframeMode.update(visualizationData);
+    }
+  }
+
+  private updateEarthMode(audioData: AudioAnalysisData | null): void {
+    // Earth rotation
+    if (this.earthGroup) {
+      this.earthGroup.rotation.y += 0.005;
+    }
+    
+    // Import THREE for effects
+    const THREE = (window as any).THREE || require('three');
+    
+    if (audioData) {
+      // Scale earth on beat
+      const scale = 1 + audioData.volume * 0.2;
+      if (this.earthGroup) {
+        this.earthGroup.scale.setScalar(scale);
+        this.earthGroup.rotation.y += audioData.volume * 0.01;
+      }
+      
+      // Update star field with music reactivity
+      this.starFieldEffect.rotateWithAudio(audioData);
+      if (this.backgroundStars) {
+        this.starFieldEffect.updateStarField(THREE, this.backgroundStars, audioData);
+      }
+      
+      // Update electrical arcs (now circular rings)
+      this.electricalArcsEffect.updateElectricalArcs(THREE, this.scene, audioData, this.time);
+      
+      // Update continent bars with music rhythm
+      this.earthEffects.updateContinentBars(THREE, audioData, this.time);
+      
+      // Update meridian signals
+      this.earthEffects.updateMeridianSignals(THREE, this.scene, audioData, this.time);
+    } else {
+      // Update effects without audio
+      this.electricalArcsEffect.updateElectricalArcs(THREE, this.scene, null, this.time);
+    }
+  }
+
   private startAnimation(): void {
     const animate = () => {
       this.animationId = requestAnimationFrame(animate);
@@ -167,38 +292,20 @@ export class VisualizationController {
       
       const audioData = (this as any).currentAudioData as AudioAnalysisData | null;
       
-      // Basic rotations
-      this.starFieldEffect.rotateStarFields();
-      if (this.earthGroup) {
-        this.earthGroup.rotation.y += 0.005;
+      // Route updates based on current mode
+      if (this.currentMode === VisualizationMode.WIREFRAME_GEOMETRY) {
+        this.updateWireframeMode(audioData);
+      } else {
+        this.updateEarthMode(audioData);
       }
       
-      // React to audio if available
+      // Always update star field
+      this.starFieldEffect.rotateStarFields();
       if (audioData) {
-        // Scale earth on beat
-        const scale = 1 + audioData.volume * 0.2;
-        if (this.earthGroup) {
-          this.earthGroup.scale.setScalar(scale);
-          this.earthGroup.rotation.y += audioData.volume * 0.01;
-        }
-        
-        // Update star field with music reactivity
         this.starFieldEffect.rotateWithAudio(audioData);
         if (this.backgroundStars) {
           this.starFieldEffect.updateStarField(THREE, this.backgroundStars, audioData);
         }
-        
-        // Update electrical arcs (now circular rings)
-        this.electricalArcsEffect.updateElectricalArcs(THREE, this.scene, audioData, this.time);
-        
-        // Update continent bars with music rhythm
-        this.earthEffects.updateContinentBars(THREE, audioData, this.time);
-        
-        // Update meridian signals
-        this.earthEffects.updateMeridianSignals(THREE, this.scene, audioData, this.time);
-      } else {
-        // Update effects without audio
-        this.electricalArcsEffect.updateElectricalArcs(THREE, this.scene, null, this.time);
       }
       
       // Render with post-processing
